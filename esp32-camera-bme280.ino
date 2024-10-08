@@ -36,8 +36,8 @@
 // ===========================
 // Enter your WiFi credentials
 // ===========================
-const char *ssid = "NETLIFE-SANCHEZ";
-const char *password = "kd200421";
+const char *ssid = "kdfernan@espol.edu.ec";//kdfernan@espol.edu.ec
+const char *password = "Hombrenaranja21";//Hombrenaranja21
 
 void startCameraServer();
 void setupLedFlash(int pin);
