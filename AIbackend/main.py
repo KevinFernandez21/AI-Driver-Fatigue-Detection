@@ -8,7 +8,7 @@ from io import BytesIO
 
 app = FastAPI()
 
-# URL de la ESP32-CAM
+# URL de la ESP32-CAM y control de buzzer
 CAMERA_URL = "http://192.168.100.145/capture"
 BUZZER_ON_URL = "http://192.168.100.145/buzzer/on"
 BUZZER_OFF_URL = "http://192.168.100.145/buzzer/off"
@@ -24,41 +24,27 @@ def calculate_eye_aspect_ratio(landmarks, eye_indices):
 
 @app.get("/stream")
 async def stream_camera():
-    # Captura imagen de la ESP32-CAM
     img_resp = requests.get(CAMERA_URL)
     img_arr = np.array(bytearray(img_resp.content), dtype=np.uint8)
     frame = cv2.imdecode(img_arr, -1)
     
-    # Convierte la imagen a formato JPEG para transmitir
-    _, jpeg = cv2.imencode('.jpg', frame)
-    return StreamingResponse(BytesIO(jpeg.tobytes()), media_type="image/jpeg")
-
-@app.post("/upload")
-async def upload_image(file: UploadFile = File(...)):
-    # Procesa la imagen subida para detectar ojos cerrados
-    image = await file.read()
-    nparr = np.frombuffer(image, np.uint8)
-    frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    # Detección de cierre de ojos
     rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     results = face_mesh.process(rgb_frame)
-    
     eyes_closed = False
+
     if results.multi_face_landmarks:
         for face_landmarks in results.multi_face_landmarks:
             left_eye_ratio = calculate_eye_aspect_ratio(face_landmarks.landmark, [33, 133, 159, 145])
             right_eye_ratio = calculate_eye_aspect_ratio(face_landmarks.landmark, [362, 263, 386, 374])
             if left_eye_ratio < 0.2 and right_eye_ratio < 0.2:
                 eyes_closed = True
+                requests.get(BUZZER_ON_URL)
+                cv2.putText(frame, "Ojos cerrados - Buzzer ON", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
                 break
+            else:
+                requests.get(BUZZER_OFF_URL)
+                cv2.putText(frame, "Ojos abiertos - Buzzer OFF", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
-    return JSONResponse(content={"eyes_closed": eyes_closed})
-
-@app.get("/buzzer/on")
-async def buzzer_on():
-    requests.get(BUZZER_ON_URL)
-    return {"status": "Buzzer ON"}
-
-@app.get("/buzzer/off")
-async def buzzer_off():
-    requests.get(BUZZER_OFF_URL)
-    return {"status": "Buzzer OFF"}
+    _, jpeg = cv2.imencode('.jpg', frame)
+    return StreamingResponse(BytesIO(jpeg.tobytes()), media_type="image/jpeg")

@@ -1,6 +1,6 @@
 #include "esp_camera.h"
 #include <WiFi.h>
-
+#include <ESPAsyncWebServer.h>
 //
 // WARNING!!! PSRAM IC required for UXGA resolution and high JPEG quality
 //            Ensure ESP32 Wrover Module or other board with PSRAM is selected
@@ -42,10 +42,20 @@ const char *password = "kd200421";
 void startCameraServer();
 void setupLedFlash(int pin);
 
+// Configuración del pin para el buzzer
+const int buzzerPin = 16;
+
+// Inicializa el servidor en el puerto 80
+AsyncWebServer server(80);
+
 void setup() {
   Serial.begin(115200);
   Serial.setDebugOutput(true);
   Serial.println();
+
+  // Configura el buzzer como salida y apágalo inicialmente
+  //pinMode(buzzerPin, OUTPUT);
+  //digitalWrite(buzzerPin, LOW);
 
   camera_config_t config;
   config.ledc_channel = LEDC_CHANNEL_0;
@@ -67,7 +77,7 @@ void setup() {
   config.pin_pwdn = PWDN_GPIO_NUM;
   config.pin_reset = RESET_GPIO_NUM;
   config.xclk_freq_hz = 20000000;
-  config.frame_size = FRAMESIZE_UXGA;
+  config.frame_size = FRAMESIZE_QVGA;
   config.pixel_format = PIXFORMAT_JPEG;  // for streaming
   //config.pixel_format = PIXFORMAT_RGB565; // for face detection/recognition
   config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
@@ -145,9 +155,35 @@ void setup() {
 
   startCameraServer();
 
+  // Endpoint para capturar imágenes de la cámara
+  //server.on("/capture", HTTP_GET, [](AsyncWebServerRequest *request){
+  //  camera_fb_t * fb = esp_camera_fb_get();
+  //  if (!fb) {
+  //    request->send(500, "text/plain", "Camera capture failed");
+  //    return;
+  //  }
+  //  request->send_P(200, "image/jpeg", (const uint8_t *)fb->buf, fb->len);
+  //  esp_camera_fb_return(fb);
+  //});
+
+  // Endpoint para encender el buzzer
+  //server.on("/buzzer/on", HTTP_GET, [](AsyncWebServerRequest *request){
+  //  digitalWrite(buzzerPin, HIGH);
+  //  request->send(200, "text/plain", "Buzzer ON");
+  //});
+
+  // Endpoint para apagar el buzzer
+  //server.on("/buzzer/off", HTTP_GET, [](AsyncWebServerRequest *request){
+  //  digitalWrite(buzzerPin, LOW);
+  //  request->send(200, "text/plain", "Buzzer OFF");
+  //});
+
+  // Inicia el servidor
+
   Serial.print("Camera Ready! Use 'http://");
   Serial.print(WiFi.localIP());
   Serial.println("' to connect");
+
 }
 
 void loop() {
