@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32-CAM Streaming y Pruebas</title>
+    <style>
+        body { font-family: Arial, sans-serif; display: flex; flex-direction: column; align-items: center; }
+        h1 { color: #333; }
+        #camera-stream, #upload-preview { max-width: 600px; border: 2px solid #333; margin-top: 20px; }
+    </style>
+</head>
+<body>
+
+    <h1>ESP32-CAM Stream y Pruebas</h1>
+    <h2>Stream en Tiempo Real</h2>
+    <img id="camera-stream" src="/stream" alt="Stream de la ESP32-CAM">
+
+    <h2>Subir Imagen para Pruebas</h2>
+    <input type="file" id="image-upload" accept="image/*">
+    <button onclick="uploadImage()">Subir y Procesar</button>
+    <p id="result"></p>
+
+    <script>
+        const cameraStream = document.getElementById('camera-stream');
+        setInterval(() => {
+            cameraStream.src = `/stream?time=${new Date().getTime()}`;
+        }, 500);
+
+        function uploadImage() {
+            const fileInput = document.getElementById('image-upload');
+            const file = fileInput.files[0];
+            if (!file) return alert("Por favor, sube una imagen.");
+
+            const formData = new FormData();
+            formData.append("file", file);
+
+            fetch("/upload", { method: "POST", body: formData })
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('result').textContent = data.eyes_closed 
+                        ? "Ojos cerrados detectados" : "Ojos abiertos detectados";
+                });
+        }
+    </script>
+</body>
+</html>
