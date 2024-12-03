@@ -1,26 +1,123 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ESP32-CAM Stream y Detección de Ojos</title>
-    <style>
-        body { font-family: Arial, sans-serif; display: flex; flex-direction: column; align-items: center; }
-        h1 { color: #333; }
-        #camera-stream { max-width: 600px; border: 2px solid #333; margin-top: 20px; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Detección de Ojos</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin-top: 50px;
+    }
+    #status {
+      margin-top: 20px;
+      font-size: 1.5em;
+      color: #333;
+    }
+    #result {
+      margin-top: 20px;
+      font-size: 1.5em;
+      color: #007bff;
+    }
+    #camera {
+      width: 100%;
+      max-width: 640px;
+      border: 2px solid #ddd;
+      margin-top: 20px;
+    }
+    button {
+      padding: 10px 20px;
+      margin-top: 20px;
+      font-size: 1em;
+      cursor: pointer;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      border-radius: 5px;
+    }
+    button:hover {
+      background-color: #0056b3;
+    }
+  </style>
 </head>
 <body>
 
-    <h1>ESP32-CAM Detección de Ojos y Control de Buzzer</h1>
-    <h2>Stream en Tiempo Real</h2>
-    <img id="camera-stream" src="/stream" alt="Stream de la ESP32-CAM">
+  <h1>Detección de Ojos</h1>
+  <video id="camera" autoplay></video>
 
-    <script>
-        const cameraStream = document.getElementById('camera-stream');
-        setInterval(() => {
-            cameraStream.src = `/stream?time=${new Date().getTime()}`;
-        }, 500);
-    </script>
+  <button id="captureBtn">Capturar Imagen</button>
+
+  <div id="status">Esperando captura...</div>
+  <div id="result"></div>
+
+  <script>
+    // Obtener elementos del DOM
+    const captureBtn = document.getElementById("captureBtn");
+    const statusDiv = document.getElementById("status");
+    const resultDiv = document.getElementById("result");
+    const cameraElement = document.getElementById("camera");
+
+    let videoStream;
+
+    // Acceder a la cámara del dispositivo
+    async function startCamera() {
+      try {
+        videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        cameraElement.srcObject = videoStream;
+      } catch (err) {
+        console.error("No se pudo acceder a la cámara:", err);
+        statusDiv.textContent = "Error al acceder a la cámara.";
+      }
+    }
+
+    // Capturar una imagen del video
+    function captureImage() {
+      const canvas = document.createElement("canvas");
+      canvas.width = 640;
+      canvas.height = 480;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(cameraElement, 0, 0, canvas.width, canvas.height);
+      return canvas.toDataURL("image/jpeg");
+    }
+
+    // Enviar la imagen al backend para obtener la predicción
+    async function getPrediction(imageData) {
+      const response = await fetch("http://<backend-ip>/predict", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ image: imageData })
+      });
+
+      if (!response.ok) {
+        statusDiv.textContent = "Error al procesar la imagen.";
+        return;
+      }
+
+      const data = await response.json();
+      return data.status;
+    }
+
+    // Capturar y procesar la imagen
+    captureBtn.addEventListener("click", async () => {
+      const imageData = captureImage();
+      statusDiv.textContent = "Procesando imagen...";
+
+      try {
+        const prediction = await getPrediction(imageData);
+        resultDiv.textContent = `Resultado: ${prediction}`;
+        statusDiv.textContent = `Estado de los ojos: ${prediction}`;
+      } catch (error) {
+        console.error("Error:", error);
+        statusDiv.textContent = "Hubo un error al obtener la predicción.";
+      }
+    });
+
+    // Iniciar la cámara al cargar la página
+    window.onload = startCamera;
+  </script>
+
 </body>
 </html>
