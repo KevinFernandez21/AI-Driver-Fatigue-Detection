@@ -63,40 +63,39 @@
       canvas.height = 480;
       const ctx = canvas.getContext("2d");
       ctx.drawImage(cameraElement, 0, 0, canvas.width, canvas.height);
-      return canvas.toDataURL("image/jpeg");
+      return canvas.toBlob((blob) => {
+        sendImageToBackend(blob);
+      }, 'image/jpeg');
     }
 
-    // Enviar la imagen al backend para obtener la predicción
-    async function getPrediction(imageData) {
-      const response = await fetch("http://<backend-ip>/predict", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ image: imageData })
-      });
-
-      if (!response.ok) {
-        statusDiv.textContent = "Error al procesar la imagen.";
-        return;
-      }
-
-      const data = await response.json();
-      return data.status;
-    }
-
-    // Función para capturar y procesar imágenes en tiempo real
-    async function processRealTime() {
-      const imageData = captureImage();
-      statusDiv.textContent = "Procesando imagen...";
+    // Enviar la imagen capturada al backend
+    async function sendImageToBackend(blob) {
+      const formData = new FormData();
+      formData.append("file", blob, "image.jpg");
 
       try {
-        const prediction = await getPrediction(imageData);
-        resultDiv.textContent = `Estado de los ojos: ${prediction}`;
+        const response = await fetch("http://127.0.0.1:8000/predict", {
+          method: "POST",
+          body: formData
+        });
+
+        if (!response.ok) {
+          statusDiv.textContent = "Error al procesar la imagen.";
+          return;
+        }
+
+        const data = await response.json();
+        resultDiv.textContent = `Estado de los ojos: ${data.status}`;
       } catch (error) {
         console.error("Error:", error);
         statusDiv.textContent = "Hubo un error al obtener la predicción.";
       }
+    }
+
+    // Función para capturar y procesar imágenes en tiempo real
+    async function processRealTime() {
+      statusDiv.textContent = "Procesando imagen...";
+      captureImage();
     }
 
     // Iniciar el proceso de captura en tiempo real (cada 1 segundo)
@@ -112,7 +111,7 @@
     // Iniciar la cámara al cargar la página
     window.onload = startCamera;
 
-    // Iniciar la detección en tiempo real al hacer click en el botón de iniciar
+    // Iniciar la detección en tiempo real
     startRealTimeDetection();
   </script>
 

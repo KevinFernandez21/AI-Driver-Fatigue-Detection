@@ -1,6 +1,6 @@
 #include "esp_camera.h"
 #include <WiFi.h>
-#include <ESPAsyncWebServer.h>
+#include <HTTPClient.h>
 //
 // WARNING!!! PSRAM IC required for UXGA resolution and high JPEG quality
 //            Ensure ESP32 Wrover Module or other board with PSRAM is selected
@@ -43,10 +43,31 @@ void startCameraServer();
 void setupLedFlash(int pin);
 
 // Configuración del pin para el buzzer
-const int buzzerPin = 16;
+const int buzzerPin = 14;
 
 // Inicializa el servidor en el puerto 80
-AsyncWebServer server(80);
+String sendImageToServer(const uint8_t *image, size_t imageSize) {
+  HTTPClient http;
+  String serverUrl = "http://192.168.100.50:8000/predict";  // Asegúrate de que la IP sea correcta
+
+  // Configurar la solicitud POST
+  http.begin(serverUrl);
+  http.addHeader("Content-Type", "multipart/form-data");
+
+  // Enviar la imagen como parte de la solicitud POST
+  int httpResponseCode = http.POST(image, imageSize);
+
+  String response = "";
+  if (httpResponseCode > 0) {
+    response = http.getString();
+    Serial.println("Respuesta del servidor: " + response);
+  } else {
+    Serial.println("Error al enviar la solicitud al servidor: " + String(httpResponseCode));
+  }
+
+  http.end();
+  return response;
+}
 
 void setup() {
   Serial.begin(115200);
@@ -156,27 +177,13 @@ void setup() {
   startCameraServer();
 
   // Endpoint para capturar imágenes de la cámara
-  //server.on("/capture", HTTP_GET, [](AsyncWebServerRequest *request){
-  //  camera_fb_t * fb = esp_camera_fb_get();
-  //  if (!fb) {
-  //    request->send(500, "text/plain", "Camera capture failed");
-  //    return;
-  //  }
-  //  request->send_P(200, "image/jpeg", (const uint8_t *)fb->buf, fb->len);
-  //  esp_camera_fb_return(fb);
-  //});
+  
 
   // Endpoint para encender el buzzer
-  //server.on("/buzzer/on", HTTP_GET, [](AsyncWebServerRequest *request){
-  //  digitalWrite(buzzerPin, HIGH);
-  //  request->send(200, "text/plain", "Buzzer ON");
-  //});
+ 
 
   // Endpoint para apagar el buzzer
-  //server.on("/buzzer/off", HTTP_GET, [](AsyncWebServerRequest *request){
-  //  digitalWrite(buzzerPin, LOW);
-  //  request->send(200, "text/plain", "Buzzer OFF");
-  //});
+  
 
   // Inicia el servidor
 
@@ -188,5 +195,28 @@ void setup() {
 
 void loop() {
   // Do nothing. Everything is done in another task by the web server
-  delay(10000);
+  // Captura una imagen de la cámara
+  camera_fb_t *fb = esp_camera_fb_get();
+  if (!fb) {
+    Serial.println("Error al capturar la imagen");
+    return;
+  }
+
+  // Enviar la imagen al servidor FastAPI
+  String serverResponse = sendImageToServer(fb->buf, fb->len);
+
+  // Analizar la respuesta del servidor
+  if (serverResponse.indexOf("Ojos abiertos") >= 0) {
+    Serial.println("Ojos abiertos detectados.");
+    digitalWrite(buzzerPin, HIGH);  // Encender el buzzer
+  } else if (serverResponse.indexOf("Ojos cerrados") >= 0) {
+    Serial.println("Ojos cerrados detectados.");
+    digitalWrite(buzzerPin, LOW);   // Apagar el buzzer
+  }
+
+  // Liberar la memoria del buffer de la cámara
+  esp_camera_fb_return(fb);
+
+  // Esperar antes de la siguiente captura
+  delay(5000);  
 }
