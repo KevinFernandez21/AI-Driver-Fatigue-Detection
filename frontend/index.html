@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Detección de Ojos</title>
+  <title>Detección de Ojos en Tiempo Real</title>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -26,39 +26,24 @@
       border: 2px solid #ddd;
       margin-top: 20px;
     }
-    button {
-      padding: 10px 20px;
-      margin-top: 20px;
-      font-size: 1em;
-      cursor: pointer;
-      background-color: #007bff;
-      color: white;
-      border: none;
-      border-radius: 5px;
-    }
-    button:hover {
-      background-color: #0056b3;
-    }
   </style>
 </head>
 <body>
 
-  <h1>Detección de Ojos</h1>
+  <h1>Detección de Ojos en Tiempo Real</h1>
   <video id="camera" autoplay></video>
 
-  <button id="captureBtn">Capturar Imagen</button>
-
-  <div id="status">Esperando captura...</div>
+  <div id="status">Esperando...</div>
   <div id="result"></div>
 
   <script>
     // Obtener elementos del DOM
-    const captureBtn = document.getElementById("captureBtn");
     const statusDiv = document.getElementById("status");
     const resultDiv = document.getElementById("result");
     const cameraElement = document.getElementById("camera");
 
     let videoStream;
+    let captureInterval;
 
     // Acceder a la cámara del dispositivo
     async function startCamera() {
@@ -100,23 +85,35 @@
       return data.status;
     }
 
-    // Capturar y procesar la imagen
-    captureBtn.addEventListener("click", async () => {
+    // Función para capturar y procesar imágenes en tiempo real
+    async function processRealTime() {
       const imageData = captureImage();
       statusDiv.textContent = "Procesando imagen...";
 
       try {
         const prediction = await getPrediction(imageData);
-        resultDiv.textContent = `Resultado: ${prediction}`;
-        statusDiv.textContent = `Estado de los ojos: ${prediction}`;
+        resultDiv.textContent = `Estado de los ojos: ${prediction}`;
       } catch (error) {
         console.error("Error:", error);
         statusDiv.textContent = "Hubo un error al obtener la predicción.";
       }
-    });
+    }
+
+    // Iniciar el proceso de captura en tiempo real (cada 1 segundo)
+    function startRealTimeDetection() {
+      captureInterval = setInterval(processRealTime, 1000);  // 1000 ms = 1 segundo
+    }
+
+    // Detener la captura en tiempo real
+    function stopRealTimeDetection() {
+      clearInterval(captureInterval);
+    }
 
     // Iniciar la cámara al cargar la página
     window.onload = startCamera;
+
+    // Iniciar la detección en tiempo real al hacer click en el botón de iniciar
+    startRealTimeDetection();
   </script>
 
 </body>
