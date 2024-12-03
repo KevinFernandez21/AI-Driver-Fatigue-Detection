@@ -47,7 +47,7 @@ async def predict(file: UploadFile = File(...)):
 
         # Procesar los resultados de la predicción
         predictions = []
-
+        
         # Si el modelo no encuentra objetos, devuelve una lista vacía
         if results and results[0].boxes:
             # Recorrer los resultados de las predicciones
@@ -58,17 +58,27 @@ async def predict(file: UploadFile = File(...)):
                     "coordinates": box.xywh.tolist()
                 }
                 predictions.append(prediction)
-
         # Verificar si se ha detectado ojos cerrados o abiertos
-        status = "No se detectaron ojos"  # Estado por defecto
+        status = "No se detectaron ojos"
+        print(predictions)
+        # Estado por defecto
+        eyes_open = 0
         if predictions:
-            # Verificar si el modelo ha detectado "ojos abiertos" o "ojos cerrados"
             for pred in predictions:
-                if pred['class'][0] == 0:  # Asumiendo que '0' es la clase de los ojos en tu modelo YOLO
-                    if pred['confidence'][0] > 0.7:  # Umbral de confianza
-                        status = "Ojos abiertos"
+                # Verificar que la clase es la de los ojos (1.0)
+                if pred['class'][0] == 1:  
+                    if pred['confidence'][0] > 0.4:
+                        eyes_open += 1  # Ojo abierto
                     else:
-                        status = "Ojos cerrados"
+                        continue  # Ojo cerrado, pero no incrementamos el contador
+
+            # Verificar si ambos ojos están abiertos
+            if eyes_open == 2:
+                status = "Ambos ojos abiertos"
+            elif eyes_open == 1:
+                status = "Un ojo abierto"
+            else:
+                status = "Ojos cerrados"
 
         # Retornar el estado de los ojos con una predicción
         return JSONResponse(content={"status": status})
