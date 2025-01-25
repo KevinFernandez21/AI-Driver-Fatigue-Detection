@@ -4,11 +4,12 @@ from fastapi.middleware.cors import CORSMiddleware
 import cv2
 import numpy as np
 from ultralytics import YOLO
+import io
 
 # Crear la instancia de la aplicación FastAPI
 app = FastAPI()
 
-# Configurar middleware CORS para permitir peticiones desde cualquier origen
+# Configurar middleware CORS para permitir las peticiones desde el frontend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # Permitir todas las direcciones de origen
@@ -18,13 +19,7 @@ app.add_middleware(
 )
 
 # Cargar el modelo YOLO previamente entrenado
-try:
-    model = YOLO("./detect/train4/weights/best.pt")  # Asegúrate de que la ruta sea correcta
-    print("Modelo YOLO cargado correctamente.")
-except Exception as e:
-    print(f"Error al cargar el modelo YOLO: {e}")
-    model = None
-
+model = YOLO("./detect/train4/weights/best.pt")
 
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)):
@@ -42,10 +37,7 @@ async def predict(file: UploadFile = File(...)):
 
         if image is None:
             print("Error: la imagen no se pudo decodificar")
-            return JSONResponse(
-                status_code=400,
-                content={"message": "La imagen no se pudo decodificar. Verifica el formato del archivo."}
-            )
+            return JSONResponse(status_code=400, content={"message": "Error en la imagen recibida."})
 
         # Redimensionar la imagen al tamaño esperado por el modelo
         resized_image = cv2.resize(image, (512, 512))
@@ -64,23 +56,20 @@ async def predict(file: UploadFile = File(...)):
                 })
 
         # Análisis del estado de los ojos
-        if not predictions:
-            status = "No se detectaron ojos"
-            eyes_open = 0
-        else:
-            eyes_open = 0
+        eyes_open = 0
+        if predictions:
             for pred in predictions:
                 # Verificar que la clase detectada es la de los ojos abiertos (1.0)
-                if pred["class"][0] == 1 and pred["confidence"][0] > 0.4:
+                if pred["class"][0] == 1 and pred["confidence"][0] > 0.8:
                     eyes_open += 1
 
-            # Determinar el estado de los ojos
-            if eyes_open == 2:
-                status = "Ambos ojos abiertos"
-            elif eyes_open == 1:
-                status = "Un ojo abierto"
-            else:
-                status = "Ojos cerrados"
+        # Determinar el estado de los ojos
+        if eyes_open == 2:
+            status = "Ambos ojos abiertos"
+        elif eyes_open == 1:
+            status = "Un ojo abierto"
+        else:
+            status = "Ojos cerrados"
 
         # Devolver la respuesta al cliente
         response = {
@@ -95,7 +84,4 @@ async def predict(file: UploadFile = File(...)):
 
     except Exception as e:
         print(f"Error al procesar la imagen: {e}")
-        return JSONResponse(
-            status_code=500,
-            content={"message": f"Error interno del servidor: {str(e)}"}
-        )
+        return JSONResponse(status_code=500, content={"message": f"Error en el servidor: {str(e)}"})

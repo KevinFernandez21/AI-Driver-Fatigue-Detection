@@ -38,35 +38,95 @@
 // ===========================
 const char *ssid = "NETLIFE-SANCHEZ";
 const char *password = "kd200421";
-
+const char* serverUrl = "http://192.168.100.47:8000/predict";
 void startCameraServer();
 void setupLedFlash(int pin);
 
 // Configuración del pin para el buzzer
 const int buzzerPin = 14;
 
-// Inicializa el servidor en el puerto 80
-String sendImageToServer(const uint8_t *image, size_t imageSize) {
-  HTTPClient http;
-  String serverUrl = "http://192.168.100.50:8000/predict";  // Asegúrate de que la IP sea correcta
+unsigned long lastClosedTime = 0;  // Momento en que se detectaron ojos cerrados por última vez
+bool alarmActive = false;         // Estado de la alarma
 
-  // Configurar la solicitud POST
-  http.begin(serverUrl);
-  http.addHeader("Content-Type", "multipart/form-data");
+// Duración requerida para activar la alarma (6 segundos)
+const unsigned long alarmThreshold = 6000; 
 
-  // Enviar la imagen como parte de la solicitud POST
-  int httpResponseCode = http.POST(image, imageSize);
+String sendImageToServer(uint8_t* image_buffer, size_t len) {
+  const char* host = "192.168.100.47"; // IP del servidor
+  const int port = 8000;              // Puerto del servidor
 
-  String response = "";
-  if (httpResponseCode > 0) {
-    response = http.getString();
-    Serial.println("Respuesta del servidor: " + response);
-  } else {
-    Serial.println("Error al enviar la solicitud al servidor: " + String(httpResponseCode));
+  WiFiClient client;
+
+  // Conectar al servidor
+  if (!client.connect(host, port)) {
+    Serial.println("Error al conectar al servidor");
+    return ""; // Retorna una cadena vacía si no se puede conectar
   }
 
-  http.end();
-  return response;
+  // Definir el boundary para el multipart/form-data
+  String boundary = "----WebKitFormBoundary7MA4YWxkTrZu0gW";
+
+  // Construir la parte inicial del cuerpo
+  String bodyStart = "--" + boundary + "\r\n";
+  bodyStart += "Content-Disposition: form-data; name=\"file\"; filename=\"image.jpg\"\r\n";
+  bodyStart += "Content-Type: image/jpeg\r\n\r\n";
+
+  // Construir la parte final del cuerpo
+  String bodyEnd = "\r\n--" + boundary + "--\r\n";
+
+  // Calcular el tamaño total del cuerpo
+  size_t contentLength = bodyStart.length() + len + bodyEnd.length();
+
+  // Construir los encabezados HTTP
+  String request = "POST /predict HTTP/1.1\r\n";
+  request += "Host: " + String(host) + "\r\n";
+  request += "Content-Type: multipart/form-data; boundary=" + boundary + "\r\n";
+  request += "Content-Length: " + String(contentLength) + "\r\n";
+  request += "Connection: close\r\n\r\n";
+
+  // Enviar la solicitud HTTP
+  client.print(request);
+  client.print(bodyStart);
+  client.write(image_buffer, len);
+  client.print(bodyEnd);
+
+  // Leer la respuesta del servidor
+  String response = "";
+  while (client.connected() || client.available()) {
+    if (client.available()) {
+      response += client.readStringUntil('\n'); // Almacenar la respuesta
+    }
+  }
+
+  client.stop();
+  return response; // Retorna la respuesta del servidor
+}
+
+
+void handleServerResponse(const String& serverResponse) {
+  unsigned long currentTime = millis();  // Obtener el tiempo actual
+
+  if (serverResponse.indexOf("\"status\":\"Ojos cerrados\"") >= 0) {
+    Serial.println("Ojos cerrados detectados.");
+
+    // Si los ojos están cerrados, actualiza el tiempo del último cierre
+    if (!alarmActive) {
+      if (lastClosedTime == 0) {
+        lastClosedTime = currentTime;
+      } else if (currentTime - lastClosedTime >= alarmThreshold) {
+        // Si los ojos han estado cerrados por más de 6 segundos, activa la alarma
+        alarmActive = true;
+        digitalWrite(buzzerPin, HIGH);  // Encender el buzzer
+        Serial.println("¡Alarma activada!");
+      }
+    }
+  } else {
+    // Si los ojos están abiertos o no se detectan ojos, reinicia el temporizador
+    Serial.println("Ojos abiertos o sin detecciones.");
+    lastClosedTime = 0;
+    alarmActive = false;
+    digitalWrite(buzzerPin, LOW);  // Apagar el buzzer
+  }
 }
 
 void setup() {
@@ -98,7 +158,7 @@ void setup() {
   config.pin_pwdn = PWDN_GPIO_NUM;
   config.pin_reset = RESET_GPIO_NUM;
   config.xclk_freq_hz = 20000000;
-  config.frame_size = FRAMESIZE_QVGA;
+  config.frame_size = FRAMESIZE_SVGA;  
   config.pixel_format = PIXFORMAT_JPEG;  // for streaming
   //config.pixel_format = PIXFORMAT_RGB565; // for face detection/recognition
   config.grab_mode = CAMERA_GRAB_WHEN_EMPTY;
@@ -202,16 +262,41 @@ void loop() {
     return;
   }
 
-  // Enviar la imagen al servidor FastAPI
+   // Enviar la imagen al servidor
+  // Enviar la imagen al servidor y obtener la respuesta
   String serverResponse = sendImageToServer(fb->buf, fb->len);
 
-  // Analizar la respuesta del servidor
-  if (serverResponse.indexOf("Ojos abiertos") >= 0) {
-    Serial.println("Ojos abiertos detectados.");
-    digitalWrite(buzzerPin, HIGH);  // Encender el buzzer
-  } else if (serverResponse.indexOf("Ojos cerrados") >= 0) {
-    Serial.println("Ojos cerrados detectados.");
-    digitalWrite(buzzerPin, LOW);   // Apagar el buzzer
+  if (serverResponse != "") {
+    Serial.println("Respuesta del servidor recibida:");
+    Serial.println(serverResponse);
+
+    // Obtener el tiempo actual
+    unsigned long currentTime = millis();
+
+    // Analizar la respuesta del servidor
+    if (serverResponse.indexOf("\"status\":\"Ojos cerrados\"") >= 0) {
+      Serial.println("Ojos cerrados detectados.");
+
+      // Si los ojos están cerrados, actualiza el tiempo del último cierre
+      if (!alarmActive) {
+        if (lastClosedTime == 0) {
+          lastClosedTime = currentTime;  // Registro inicial del tiempo
+        } else if (currentTime - lastClosedTime >= alarmThreshold) {
+          // Si los ojos han estado cerrados por más de 6 segundos, activa la alarma
+          alarmActive = true;
+          digitalWrite(buzzerPin, HIGH);  // Encender el buzzer
+          Serial.println("¡Alarma activada!");
+        }
+      }
+    } else {
+      // Si los ojos están abiertos o no se detectaron ojos, reinicia el temporizador
+      Serial.println("Ojos abiertos o sin detecciones.");
+      lastClosedTime = 0;
+      alarmActive = false;
+      digitalWrite(buzzerPin, LOW);  // Apagar el buzzer
+    }
+  } else {
+    Serial.println("Error al enviar la imagen al servidor.");
   }
 
   // Liberar la memoria del buffer de la cámara

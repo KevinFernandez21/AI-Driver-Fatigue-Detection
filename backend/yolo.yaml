@@ -1,0 +1,7 @@
+path: ./database2
+train: ../images/train
+val: ../images/val # val images (relative to 'path') 19809 images
+
+names:
+  0: closed_eyes
+  1: open_eyes
