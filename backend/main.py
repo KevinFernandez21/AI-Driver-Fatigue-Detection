@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import cv2
 import numpy as np
 from ultralytics import YOLO
-
+import os
 # Crear la instancia de la aplicación FastAPI
 app = FastAPI()
 
@@ -99,3 +99,7 @@ async def predict(file: UploadFile = File(...)):
             status_code=500,
             content={"message": f"Error interno del servidor: {str(e)}"}
         )
+    
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 8080))  # Usa el puerto 8080 por defecto
+    app.run(host="0.0.0.0", port=port)
