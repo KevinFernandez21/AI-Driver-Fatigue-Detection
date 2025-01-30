@@ -16,6 +16,8 @@ app.add_middleware(
     allow_methods=["*"],  # Permitir todos los métodos HTTP
     allow_headers=["*"],  # Permitir todas las cabeceras
 )
+# 🔹 Base de datos temporal para almacenar logs del ESP32
+esp32_logs = []
 
 # Cargar el modelo YOLO previamente entrenado
 try:
@@ -91,6 +93,7 @@ async def predict(file: UploadFile = File(...)):
                 "total_detections": len(predictions)
             }
         }
+        esp32_logs.append(response)
         return JSONResponse(content=response)
 
     except Exception as e:
@@ -99,7 +102,12 @@ async def predict(file: UploadFile = File(...)):
             status_code=500,
             content={"message": f"Error interno del servidor: {str(e)}"}
         )
-    
+
+@app.get("/logs")
+async def get_logs():
+    """Devuelve los últimos 10 registros del ESP32."""
+    return JSONResponse(content={"logs": esp32_logs[-10:]})
+
 if __name__ == "__main__":
     import uvicorn
 

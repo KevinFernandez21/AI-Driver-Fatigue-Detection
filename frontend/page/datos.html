@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Datos de la Encuesta</title>
+  <style>
+    img {
+      width: 200px;
+      height: auto;
+      margin: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Datos de la Encuesta</h1>
+  <div id="imagenes"></div>
+
+  <script>
+    const imagenes = [
+      "assets/imagen1.jpg",
+      "assets/imagen2.jpg",
+      "assets/imagen3.jpg",
+      "assets/imagen4.jpg",
+      "assets/imagen5.jpg",
+      "assets/imagen6.jpg",
+      "assets/imagen7.jpg",
+      "assets/imagen8.jpg",
+      "assets/imagen9.jpg",
+      "assets/imagen10.jpg"
+    ];
+
+    const contenedor = document.getElementById("imagenes");
+    imagenes.forEach(imgSrc => {
+      const img = document.createElement("img");
+      img.src = imgSrc;
+      contenedor.appendChild(img);
+    });
+  </script>
+</body>
+</html>

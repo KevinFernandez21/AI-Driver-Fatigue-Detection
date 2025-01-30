@@ -38,7 +38,7 @@
 // ===========================
 const char *ssid = "NETLIFE-SANCHEZ";
 const char *password = "kd200421";
-const char* serverUrl = "http://192.168.100.47:8000/predict";
+const char* serverUrl = "https://backend-600343716837.southamerica-east1.run.app/predict";
 void startCameraServer();
 void setupLedFlash(int pin);
 

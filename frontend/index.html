@@ -1,119 +1,24 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Detección de Ojos en Tiempo Real</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      text-align: center;
-      margin-top: 50px;
-    }
-    #status {
-      margin-top: 20px;
-      font-size: 1.5em;
-      color: #333;
-    }
-    #result {
-      margin-top: 20px;
-      font-size: 1.5em;
-      color: #007bff;
-    }
-    #camera {
-      width: 100%;
-      max-width: 640px;
-      border: 2px solid #ddd;
-      margin-top: 20px;
-    }
-  </style>
-</head>
-<body>
+<h2>Registros del ESP32</h2>
+<div id="logs"></div>
 
-  <h1>Detección de Ojos en Tiempo Real</h1>
-  <video id="camera" autoplay></video>
+<script>
+async function fetchLogs() {
+  try {
+    const response = await fetch("http://192.168.100.76:8000/logs");
+    if (!response.ok) throw new Error("Error obteniendo logs");
+    
+    const data = await response.json();
+    const logsDiv = document.getElementById("logs");
+    logsDiv.innerHTML = "<h3>Últimos 10 registros:</h3>";
 
-  <div id="status">Esperando...</div>
-  <div id="result"></div>
+    data.logs.forEach(log => {
+      logsDiv.innerHTML += `<p>ID ESP32: ${log.id} - Estado: ${log.status}</p>`;
+    });
+  } catch (error) {
+    console.error("Error obteniendo logs:", error);
+  }
+}
 
-  <script>
-    // Obtener elementos del DOM
-    const statusDiv = document.getElementById("status");
-    const resultDiv = document.getElementById("result");
-    const cameraElement = document.getElementById("camera");
-
-    let videoStream;
-    let captureInterval;
-
-    // Acceder a la cámara del dispositivo
-    async function startCamera() {
-      try {
-        videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
-        cameraElement.srcObject = videoStream;
-      } catch (err) {
-        console.error("No se pudo acceder a la cámara:", err);
-        statusDiv.textContent = "Error al acceder a la cámara.";
-      }
-    }
-
-    // Capturar una imagen del video
-    function captureImage() {
-      const canvas = document.createElement("canvas");
-      canvas.width = 640;
-      canvas.height = 480;
-      const ctx = canvas.getContext("2d");
-      ctx.drawImage(cameraElement, 0, 0, canvas.width, canvas.height);
-      return canvas.toBlob((blob) => {
-        sendImageToBackend(blob);
-      }, 'image/jpeg');
-    }
-
-    // Enviar la imagen capturada al backend
-    async function sendImageToBackend(blob) {
-      const formData = new FormData();
-      formData.append("file", blob, "image.jpg");
-
-      try {
-        const response = await fetch("http://192.168.100.76:8000/predict", {
-          method: "POST",
-          body: formData
-        });
-
-        if (!response.ok) {
-          statusDiv.textContent = "Error al procesar la imagen.";
-          return;
-        }
-
-        const data = await response.json();
-        resultDiv.textContent = `Estado de los ojos: ${data.status}`;
-      } catch (error) {
-        console.error("Error:", error);
-        statusDiv.textContent = "Hubo un error al obtener la predicción.";
-      }
-    }
-
-    // Función para capturar y procesar imágenes en tiempo real
-    async function processRealTime() {
-      statusDiv.textContent = "Procesando imagen...";
-      captureImage();
-    }
-
-    // Iniciar el proceso de captura en tiempo real (cada 1 segundo)
-    function startRealTimeDetection() {
-      captureInterval = setInterval(processRealTime, 1000);  // 1000 ms = 1 segundo
-    }
-
-    // Detener la captura en tiempo real
-    function stopRealTimeDetection() {
-      clearInterval(captureInterval);
-    }
-
-    // Iniciar la cámara al cargar la página
-    window.onload = startCamera;
-
-    // Iniciar la detección en tiempo real
-    startRealTimeDetection();
-  </script>
-
-</body>
-</html>
+// Obtener logs cada 5 segundos
+setInterval(fetchLogs, 5000);
+</script>
