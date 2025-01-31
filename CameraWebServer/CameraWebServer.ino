@@ -52,54 +52,62 @@ bool alarmActive = false;         // Estado de la alarma
 const unsigned long alarmThreshold = 6000; 
 
 String sendImageToServer(uint8_t* image_buffer, size_t len) {
-  const char* host = "192.168.100.47"; // IP del servidor
-  const int port = 8000;              // Puerto del servidor
+  const char* host = "192.168.100.76";  // Dirección del servidor
+  const int port = 8000;                // Puerto del servidor
 
   WiFiClient client;
 
-  // Conectar al servidor
+  // Intentar conectar al servidor
   if (!client.connect(host, port)) {
-    Serial.println("Error al conectar al servidor");
-    return ""; // Retorna una cadena vacía si no se puede conectar
+    Serial.println("❌ Error al conectar al servidor");
+    return "";
   }
 
-  // Definir el boundary para el multipart/form-data
-  String boundary = "----WebKitFormBoundary7MA4YWxkTrZu0gW";
+  String esp32ID = String(ESP.getEfuseMac(), HEX);  // Obtener ID único del ESP32
+  String boundary = "----WebKitFormBoundary";       // Delimitador para multipart/form-data
 
-  // Construir la parte inicial del cuerpo
-  String bodyStart = "--" + boundary + "\r\n";
-  bodyStart += "Content-Disposition: form-data; name=\"file\"; filename=\"image.jpg\"\r\n";
-  bodyStart += "Content-Type: image/jpeg\r\n\r\n";
-
-  // Construir la parte final del cuerpo
-  String bodyEnd = "\r\n--" + boundary + "--\r\n";
-
-  // Calcular el tamaño total del cuerpo
-  size_t contentLength = bodyStart.length() + len + bodyEnd.length();
-
-  // Construir los encabezados HTTP
+  // Crear la cabecera HTTP
   String request = "POST /predict HTTP/1.1\r\n";
   request += "Host: " + String(host) + "\r\n";
   request += "Content-Type: multipart/form-data; boundary=" + boundary + "\r\n";
-  request += "Content-Length: " + String(contentLength) + "\r\n";
-  request += "Connection: close\r\n\r\n";
+  
+  // Crear la parte del cuerpo con la ID del ESP32
+  String bodyStart = "--" + boundary + "\r\n";
+  bodyStart += "Content-Disposition: form-data; name=\"esp32_id\"\r\n\r\n";
+  bodyStart += esp32ID + "\r\n";
 
-  // Enviar la solicitud HTTP
+  // Adjuntar la imagen
+  String imageHeader = "--" + boundary + "\r\n";
+  imageHeader += "Content-Disposition: form-data; name=\"file\"; filename=\"image.jpg\"\r\n";
+  imageHeader += "Content-Type: image/jpeg\r\n\r\n";
+
+  // Crear el cierre del multipart/form-data
+  String bodyEnd = "\r\n--" + boundary + "--\r\n";
+
+  // Calcular el tamaño total de la solicitud
+  size_t contentLength = bodyStart.length() + imageHeader.length() + len + bodyEnd.length();
+
+  // Agregar la longitud de la solicitud
+  request += "Content-Length: " + String(contentLength) + "\r\n";
+  request += "Connection: close\r\n\r\n";  // Cerrar la conexión al finalizar
+
+  // Enviar la solicitud HTTP al servidor
   client.print(request);
   client.print(bodyStart);
-  client.write(image_buffer, len);
+  client.print(imageHeader);
+  client.write(image_buffer, len);  // Enviar la imagen en binario
   client.print(bodyEnd);
 
   // Leer la respuesta del servidor
   String response = "";
   while (client.connected() || client.available()) {
     if (client.available()) {
-      response += client.readStringUntil('\n'); // Almacenar la respuesta
+      response += client.readStringUntil('\n'); // Leer la respuesta
     }
   }
 
-  client.stop();
-  return response; // Retorna la respuesta del servidor
+  client.stop();  // Cerrar conexión
+  return response;  // Retornar respuesta del servidor
 }
 
 

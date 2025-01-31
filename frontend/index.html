@@ -1,24 +1,136 @@
-<h2>Registros del ESP32</h2>
-<div id="logs"></div>
-
-<script>
-async function fetchLogs() {
-  try {
-    const response = await fetch("http://192.168.100.76:8000/logs");
-    if (!response.ok) throw new Error("Error obteniendo logs");
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Driver</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      background: linear-gradient(45deg, #1e3c72, #2a5298);
+      color: white;
+      margin: 0;
+      padding: 20px;
+    }
     
-    const data = await response.json();
-    const logsDiv = document.getElementById("logs");
-    logsDiv.innerHTML = "<h3>Últimos 10 registros:</h3>";
+    h1 {
+      font-size: 50px;
+      font-weight: bold;
+      margin-bottom: 10px;
+      text-shadow: 3px 3px 5px rgba(0,0,0,0.3);
+    }
+    
+    #navbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 10px;
+      margin-bottom: 20px;
+    }
+    
+    #navbar a {
+      text-decoration: none;
+      color: white;
+      font-size: 20px;
+      font-weight: bold;
+      padding: 10px 20px;
+      background: #ff9800;
+      border-radius: 5px;
+      transition: 0.3s;
+    }
+    
+    #navbar a:hover {
+      background: #ff5722;
+    }
+    
+    #video-container {
+      margin: 20px auto;
+    }
 
-    data.logs.forEach(log => {
-      logsDiv.innerHTML += `<p>ID ESP32: ${log.id} - Estado: ${log.status}</p>`;
-    });
-  } catch (error) {
-    console.error("Error obteniendo logs:", error);
-  }
-}
+    select {
+      padding: 10px;
+      font-size: 16px;
+      margin-top: 10px;
+    }
 
-// Obtener logs cada 5 segundos
-setInterval(fetchLogs, 5000);
-</script>
+    #logs {
+      text-align: left;
+      max-width: 600px;
+      margin: auto;
+      background: #ffffff;
+      color: black;
+      padding: 10px;
+      border-radius: 10px;
+      overflow-y: auto;
+      max-height: 400px;
+    }
+    
+    .log-entry {
+      padding: 8px;
+      margin: 5px 0;
+      background: #eee;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>AI Driver</h1>
+
+  <div id="navbar">
+    <span>🔍 Sistema de Detección de Fatiga</span>
+    <a href="datos.html">📊 Datos</a>
+  </div>
+
+  <h2>Seleccionar Fuente de Video</h2>
+  <select id="videoSource">
+    <option value="esp32">ESP32</option>
+    <option value="webcam">Cámara Web</option>
+  </select>
+
+  <div id="video-container">
+    <video id="camera" autoplay width="640" height="480"></video>
+  </div>
+
+  <h2>Logs de Detección</h2>
+  <div id="logs">Cargando logs...</div>
+
+  <script>
+    async function fetchLogs() {
+      try {
+        const response = await fetch("/logs");
+        if (!response.ok) throw new Error("Error obteniendo logs");
+
+        const data = await response.json();
+        const logsDiv = document.getElementById("logs");
+        logsDiv.innerHTML = "";
+
+        if (data.logs.length === 0) {
+          logsDiv.innerHTML = "<p>No hay registros aún.</p>";
+          return;
+        }
+
+        data.logs.forEach(log => {
+          const logEntry = document.createElement("div");
+          logEntry.classList.add("log-entry");
+          logEntry.innerHTML = `
+            <strong>ID ESP32:</strong> ${log.esp32_id} <br>
+            <strong>Estado:</strong> ${log.status} <br>
+            <strong>Fecha:</strong> ${log.timestamp} <br>
+          `;
+          logsDiv.appendChild(logEntry);
+        });
+      } catch (error) {
+        console.error("Error obteniendo logs:", error);
+      }
+    }
+
+    setInterval(fetchLogs, 5000);
+  </script>
+
+</body>
+</html>
