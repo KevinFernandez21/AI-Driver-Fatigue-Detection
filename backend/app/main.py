@@ -45,9 +45,9 @@ async def predict(file: UploadFile = File(...), esp32_id: str = Form(...), esp32
     image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
     if image is None:
         return JSONResponse(status_code=400, content={"message": "Error al decodificar imagen."})
-
+    resized_image = cv2.resize(image, (512, 512))
     # Realizar la predicción con YOLO
-    results = model(image) if model else None
+    results = model(resized_image) if model else None
     predictions = []
     
     if results and results[0].boxes:
