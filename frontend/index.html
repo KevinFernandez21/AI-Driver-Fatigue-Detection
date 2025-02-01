@@ -102,7 +102,7 @@
   <script>
     async function fetchLogs() {
       try {
-        const response = await fetch("/logs");
+        const response = await fetch("https://backend-600343716837.southamerica-east1.run.app/logs");
         if (!response.ok) throw new Error("Error obteniendo logs");
 
         const data = await response.json();

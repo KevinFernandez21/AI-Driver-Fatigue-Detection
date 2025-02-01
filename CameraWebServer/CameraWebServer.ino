@@ -1,6 +1,6 @@
 #include "esp_camera.h"
 #include <WiFi.h>
-#include <HTTPClient.h>
+#include <WiFiClientSecure.h>
 //
 // WARNING!!! PSRAM IC required for UXGA resolution and high JPEG quality
 //            Ensure ESP32 Wrover Module or other board with PSRAM is selected
@@ -38,7 +38,6 @@
 // ===========================
 const char *ssid = "NETLIFE-SANCHEZ";
 const char *password = "kd200421";
-const char* serverUrl = "https://backend-600343716837.southamerica-east1.run.app/predict";
 void startCameraServer();
 void setupLedFlash(int pin);
 
@@ -51,64 +50,38 @@ bool alarmActive = false;         // Estado de la alarma
 // Duración requerida para activar la alarma (6 segundos)
 const unsigned long alarmThreshold = 6000; 
 
-String sendImageToServer(uint8_t* image_buffer, size_t len) {
-  const char* host = "192.168.100.76";  // Dirección del servidor
-  const int port = 8000;                // Puerto del servidor
+async function fetchLogs() {
+  try {
+    const response = await fetch("/logs");
+    if (!response.ok) throw new Error("Error obteniendo logs");
 
-  WiFiClient client;
+    const data = await response.json();
+    const logsDiv = document.getElementById("logs");
+    logsDiv.innerHTML = "";
 
-  // Intentar conectar al servidor
-  if (!client.connect(host, port)) {
-    Serial.println("❌ Error al conectar al servidor");
-    return "";
-  }
-
-  String esp32ID = String(ESP.getEfuseMac(), HEX);  // Obtener ID único del ESP32
-  String boundary = "----WebKitFormBoundary";       // Delimitador para multipart/form-data
-
-  // Crear la cabecera HTTP
-  String request = "POST /predict HTTP/1.1\r\n";
-  request += "Host: " + String(host) + "\r\n";
-  request += "Content-Type: multipart/form-data; boundary=" + boundary + "\r\n";
-  
-  // Crear la parte del cuerpo con la ID del ESP32
-  String bodyStart = "--" + boundary + "\r\n";
-  bodyStart += "Content-Disposition: form-data; name=\"esp32_id\"\r\n\r\n";
-  bodyStart += esp32ID + "\r\n";
-
-  // Adjuntar la imagen
-  String imageHeader = "--" + boundary + "\r\n";
-  imageHeader += "Content-Disposition: form-data; name=\"file\"; filename=\"image.jpg\"\r\n";
-  imageHeader += "Content-Type: image/jpeg\r\n\r\n";
-
-  // Crear el cierre del multipart/form-data
-  String bodyEnd = "\r\n--" + boundary + "--\r\n";
-
-  // Calcular el tamaño total de la solicitud
-  size_t contentLength = bodyStart.length() + imageHeader.length() + len + bodyEnd.length();
-
-  // Agregar la longitud de la solicitud
-  request += "Content-Length: " + String(contentLength) + "\r\n";
-  request += "Connection: close\r\n\r\n";  // Cerrar la conexión al finalizar
-
-  // Enviar la solicitud HTTP al servidor
-  client.print(request);
-  client.print(bodyStart);
-  client.print(imageHeader);
-  client.write(image_buffer, len);  // Enviar la imagen en binario
-  client.print(bodyEnd);
-
-  // Leer la respuesta del servidor
-  String response = "";
-  while (client.connected() || client.available()) {
-    if (client.available()) {
-      response += client.readStringUntil('\n'); // Leer la respuesta
+    if (data.logs.length === 0) {
+      logsDiv.innerHTML = "<p>No hay registros aún.</p>";
+      return;
     }
-  }
 
-  client.stop();  // Cerrar conexión
-  return response;  // Retornar respuesta del servidor
+    data.logs.forEach(log => {
+      const logEntry = document.createElement("div");
+      logEntry.classList.add("log-entry");
+      logEntry.innerHTML = `
+        <strong>ID ESP32:</strong> ${log.esp32_id} <br>
+        <strong>IP ESP32:</strong> ${log.esp32_ip} <br>
+        <strong>Estado:</strong> ${log.status} <br>
+        <strong>Fecha:</strong> ${log.timestamp} <br>
+      `;
+      logsDiv.appendChild(logEntry);
+    });
+  } catch (error) {
+    console.error("Error obteniendo logs:", error);
+  }
 }
+
+setInterval(fetchLogs, 5000);
+
 
 
 void handleServerResponse(const String& serverResponse) {
