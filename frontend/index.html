@@ -64,8 +64,6 @@
       color: black;
       padding: 10px;
       border-radius: 10px;
-      overflow-y: auto;
-      max-height: 400px;
     }
     
     .log-entry {
@@ -87,7 +85,7 @@
   </div>
 
   <h2>Seleccionar Fuente de Video</h2>
-  <select id="videoSource">
+  <select id="videoSource" onchange="updateVideoSource()">
     <option value="esp32">ESP32</option>
     <option value="webcam">Cámara Web</option>
   </select>
@@ -96,11 +94,58 @@
     <video id="camera" autoplay width="640" height="480"></video>
   </div>
 
-  <h2>Logs de Detección</h2>
+  <h2>Último Log de Detección</h2>
   <div id="logs">Cargando logs...</div>
 
   <script>
-    async function fetchLogs() {
+    let videoStream = null;
+    let esp32IP = ""; // Aquí se almacenará la IP más reciente del ESP32
+
+    // Obtener la IP más reciente del ESP32 desde los logs del servidor
+    async function fetchESP32IP() {
+      try {
+        const response = await fetch("https://backend-600343716837.southamerica-east1.run.app/logs");
+        if (!response.ok) throw new Error("Error obteniendo logs");
+
+        const data = await response.json();
+        if (data.logs.length === 0) return;
+
+        // Obtener la IP del ESP32 desde el último log
+        esp32IP = data.logs[data.logs.length - 1].esp32_ip;
+        console.log("📡 IP ESP32 detectada:", esp32IP);
+      } catch (error) {
+        console.error("Error obteniendo la IP del ESP32:", error);
+      }
+    }
+
+    async function updateVideoSource() {
+      const source = document.getElementById("videoSource").value;
+      const videoElement = document.getElementById("camera");
+
+      if (videoStream) {
+        videoStream.getTracks().forEach(track => track.stop()); // Detener cualquier stream previo
+      }
+
+      if (source === "esp32") {
+        await fetchESP32IP(); // Asegurarnos de obtener la IP más reciente antes de cambiar la fuente de video
+
+        if (esp32IP) {
+          videoElement.srcObject = null;
+          videoElement.src = `http://${esp32IP}:81/stream`; // 📌 Se asigna la IP dinámica obtenida del backend
+        } else {
+          console.warn("⚠ No se encontró IP del ESP32 en los logs.");
+        }
+      } else if (source === "webcam") {
+        try {
+          videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+          videoElement.srcObject = videoStream;
+        } catch (error) {
+          console.error("No se pudo acceder a la cámara:", error);
+        }
+      }
+    }
+
+    async function fetchLatestLog() {
       try {
         const response = await fetch("https://backend-600343716837.southamerica-east1.run.app/logs");
         if (!response.ok) throw new Error("Error obteniendo logs");
@@ -114,22 +159,24 @@
           return;
         }
 
-        data.logs.forEach(log => {
-          const logEntry = document.createElement("div");
-          logEntry.classList.add("log-entry");
-          logEntry.innerHTML = `
+        // Mostrar solo el último log
+        const log = data.logs[data.logs.length - 1];
+        logsDiv.innerHTML = `
+          <div class="log-entry">
             <strong>ID ESP32:</strong> ${log.esp32_id} <br>
+            <strong>IP ESP32:</strong> ${log.esp32_ip} <br>
             <strong>Estado:</strong> ${log.status} <br>
             <strong>Fecha:</strong> ${log.timestamp} <br>
-          `;
-          logsDiv.appendChild(logEntry);
-        });
+          </div>
+        `;
       } catch (error) {
         console.error("Error obteniendo logs:", error);
       }
     }
 
-    setInterval(fetchLogs, 5000);
+    // Cargar fuente de video inicial y actualizar logs cada 5s
+    updateVideoSource();
+    setInterval(fetchLatestLog, 5000);
   </script>
 
 </body>
